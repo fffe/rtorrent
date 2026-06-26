@@ -57,6 +57,18 @@ ExecFile::execute(const char* file, char* const* argv, int flags) {
     throw torrent::internal_error("ExecFile::execute(...) posix_spawn_file_actions_init failed.");
   }
 
+  posix_spawnattr_t attr;
+  posix_spawnattr_init(&attr);
+
+  // Try to avoid leaking open fds to the spawned process. Prefer POSIX_SPAWN_CLOEXEC_DEFAULT
+  // (macOS-only) or posix_spawn_file_actions_addclosefrom_np (glibc >= 2.34, FreeBSD >= 13.1).
+  // Other platforms like musl libc, OpenBSD and NetBSD must rely on explicit O_CLOEXEC.
+#if defined(POSIX_SPAWN_CLOEXEC_DEFAULT)
+  posix_spawnattr_setflags(&attr, POSIX_SPAWN_CLOEXEC_DEFAULT);
+#elif defined(HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCLOSEFROM_NP)
+  posix_spawn_file_actions_addclosefrom_np(&actions, 3);
+#endif
+
   // Handle standard input redirection (/dev/null), posix_spawn_file_actions_addopen handles opening
   // and dup2 natively
   if (posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDWR, 0) != 0) {
@@ -84,17 +96,6 @@ ExecFile::execute(const char* file, char* const* argv, int flags) {
   } else {
     posix_spawn_file_actions_addopen(&actions, 2, "/dev/null", O_RDWR, 0);
   }
-
-  posix_spawnattr_t attr;
-  posix_spawnattr_init(&attr);
-
-  // If you are using standard close-on-exec (O_CLOEXEC) across rtorrent, posix_spawn honors it
-  // automatically. If you want to explicitly enforce a clean slate, modern systems support
-  // POSIX_SPAWN_CLOEXEC_DEFAULT.
-
-#ifdef POSIX_SPAWN_CLOEXEC_DEFAULT
-  posix_spawnattr_setflags(&attr, POSIX_SPAWN_CLOEXEC_DEFAULT);
-#endif
 
   pid_t child_pid{};
 
