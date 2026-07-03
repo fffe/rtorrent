@@ -92,9 +92,6 @@ ExecFile::execute(const char* file, char* const* argv, int flags) {
     posix_spawn_file_actions_addopen(&actions, 2, "/dev/null", O_RDWR, 0);
   }
 
-  posix_spawnattr_t attr;
-  posix_spawnattr_init(&attr);
-
   if (flags & flag_background) {
 #ifdef POSIX_SPAWN_SETSID
     spawn_flags |= POSIX_SPAWN_SETSID;
