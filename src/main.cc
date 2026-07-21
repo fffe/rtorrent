@@ -115,14 +115,12 @@ main(int argc, char** argv) {
     // TODO: Create a fake thread object for initializing other processes and enabling logging.
     torrent::initialize_main_thread();
 
-    // Block SIGCHLD until all threads are created, then unblock on main-thread, to avoid SIGCHLD
-    // interrupting other threads.
-    //
-    // This means only main-thread can fork and wait for child processes.
-
     SignalHandler::set_block(SIGALRM);
     SignalHandler::set_block(SIGPIPE);
+
+    // SIGCHLD must stay blocked in all threads.
     SignalHandler::set_block(SIGCHLD);
+    rpc::execFile.initialize();
 
     // All signal handlers must restore errno if they return.
     SignalHandler::set_handler(SIGSEGV,  std::bind(&do_panic, SIGSEGV));
@@ -166,8 +164,6 @@ main(int argc, char** argv) {
 
     scgi::ThreadScgi::create_thread();
     session::ThreadSession::create_thread();
-
-    SignalHandler::set_unblock(SIGCHLD);
 
     // Initialize option handlers after libtorrent to ensure
     // torrent::ConnectionManager* are valid etc.
@@ -487,7 +483,10 @@ main(int argc, char** argv) {
     control->cleanup();
 
   } catch (torrent::internal_error& e) {
-    control->cleanup_exception();
+    if (control != nullptr)
+      control->cleanup_exception();
+    else
+      rpc::execFile.cleanup();
 
     std::cout << "rtorrent: caught torrent::internal_error: "
               << e.what() << std::endl
@@ -500,7 +499,10 @@ main(int argc, char** argv) {
     return -1;
 
   } catch (std::exception& e) {
-    control->cleanup_exception();
+    if (control != nullptr)
+      control->cleanup_exception();
+    else
+      rpc::execFile.cleanup();
 
     std::cout << "rtorrent: caught" << typeid(e).name() << " : " << e.what() << std::endl;
 

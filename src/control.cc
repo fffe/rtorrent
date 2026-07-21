@@ -99,6 +99,7 @@ Control::cleanup() {
 
   m_ui->cleanup();
   m_core->cleanup();
+  rpc::execFile.cleanup();
 
   display::Canvas::erase_std();
   display::Canvas::refresh_std();
@@ -108,6 +109,7 @@ Control::cleanup() {
 
 void
 Control::cleanup_exception() {
+  rpc::execFile.cleanup();
   display::Canvas::cleanup();
 }
 
